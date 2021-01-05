@@ -1,0 +1,786 @@
+---
+title: "GOATAnalysis"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## R Markdown
+
+This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+
+When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+
+```{r}
+
+
+library(tidyverse)
+library(tidymodels)
+```
+
+```{r}
+library(vip)
+library(ggplot2)
+library(rsample)
+library(parsnip)
+library(dplyr)
+library(recipes)
+library(workflows)
+library(tune)
+library(broom)
+
+```
+```{r}
+library(rstanarm)
+library(keras)
+```
+
+
+
+
+```{r}
+
+
+#Load Data
+
+advanced_stats_df <- read_csv('/Users/viren1/Documents/College/Python/Datasets/michael-jordan-kobe-bryant-and-lebron-james-stats/advanced_stats.csv')
+
+
+glimpse(advanced_stats_df)
+
+
+
+```
+
+```{r}
+allgames_stats_df <- read_csv('/Users/viren1/Documents/College/Python/Datasets/michael-jordan-kobe-bryant-and-lebron-james-stats/allgames_stats.csv')
+
+
+glimpse(allgames_stats_df)
+```
+
+
+```{r}
+
+
+game_highs_stats_df <- read_csv('/Users/viren1/Documents/College/Python/Datasets/michael-jordan-kobe-bryant-and-lebron-james-stats/game_highs_stats.csv')
+
+glimpse(game_highs_stats_df)
+
+
+```
+
+```{r}
+per_game_stats_df <- read_csv('/Users/viren1/Documents/College/Python/Datasets/michael-jordan-kobe-bryant-and-lebron-james-stats/per_game_stats.csv')
+
+glimpse(per_game_stats_df)
+```
+
+
+```{r}
+
+allstar_games_stats_df <- read_csv('/Users/viren1/Documents/College/Python/Datasets/michael-jordan-kobe-bryant-and-lebron-james-stats/allstar_games_stats.csv')
+
+glimpse(allstar_games_stats_df)
+
+```
+
+```{r}
+
+salaries_df <- read_csv('/Users/viren1/Documents/College/Python/Datasets/michael-jordan-kobe-bryant-and-lebron-james-stats/salaries.csv')
+
+glimpse(salaries_df)
+
+
+```
+
+```{r}
+totals_stats_df <- read_csv('/Users/viren1/Documents/College/Python/Datasets/michael-jordan-kobe-bryant-and-lebron-james-stats/totals_stats.csv')
+
+glimpse(totals_stats_df %>% group_by(Player, Season))
+```
+
+
+
+```{r}
+per_game_stats_df %>% ggplot(aes(AST, fill=Player)) + geom_density(bw=0.3, position='dodge') + facet_grid(vars(RSorPO), vars(Player)) + labs(x='AST/Game')
+
+per_game_stats_df %>% ggplot(aes(TOV, fill=Player)) + geom_density(bw=0.3, position='dodge') + facet_grid(vars(RSorPO), vars(Player)) + labs(x='TOV/Game') 
+
+
+per_game_stats_df %>% ggplot(aes(PTS, fill=Player)) + geom_density(bw=1, position='dodge') + facet_grid(vars(RSorPO), vars(Player)) + labs(x='PTS/Game')
+
+per_game_stats_df %>% ggplot(aes(TRB, fill=Player)) + geom_density(bw=0.3, position='dodge') + facet_grid(vars(RSorPO), vars(Player)) + labs(x='TRB/Game') 
+
+
+per_game_stats_df %>% ggplot(aes(BLK, fill=Player)) + geom_density(bw=0.3, position='dodge') + facet_grid(vars(RSorPO), vars(Player)) + labs(x='BLK/Game')
+
+per_game_stats_df %>% ggplot(aes(STL, fill=Player)) + geom_density(bw=0.3, position='dodge') + facet_grid(vars(RSorPO), vars(Player)) + labs(x='STL/Game') 
+```
+
+
+
+
+```{r}
+#Per Game Analysis: Reg Season vs. Playoffs
+
+per_game_stats_df
+
+
+per_game_shooting_stats <- per_game_stats_df %>% select(Player, RSorPO, Season, Age, `FG%`, FGA, `3P%`, `3PA`, `2P%`, `2PA`, `FT%`, FTA, PTS) %>% group_by(Player)
+
+
+
+#Comparing shooting statistics
+
+#barplots + TS plots
+
+per_game_shooting_stats
+
+custom_theme <- theme(axis.text.x = element_text(angle=90))
+
+par(mfrow=c(3, 3))
+
+#FG %
+
+per_game_shooting_stats %>% select(Player, `FG%`, RSorPO) %>% ggplot(aes(factor(Player), `FG%`, fill=Player)) + geom_col() + facet_wrap(~RSorPO) + labs(x = 'Player', y = 'FG% per Game') + custom_theme + ylim(c(0, max(per_game_shooting_stats$`FG%`)))
+
+per_game_shooting_stats %>% select(Player, `FG%`, Season) %>% ggplot(aes(Season, `FG%`, group=3, color=Player)) + geom_line() + custom_theme + facet_wrap(~Player, ncol=1) + geom_smooth(method='lm')
+
+
+#3P %
+
+
+per_game_shooting_stats %>% select(Player, `3P%`, RSorPO) %>% ggplot(aes(factor(Player), `3P%`, fill=Player)) + geom_col() + facet_wrap(~RSorPO) + labs(x = 'Player', y = '3p% per Game') + custom_theme +  ylim(c(0, max(per_game_shooting_stats$`3P%`)))
+
+per_game_shooting_stats %>% select(Player, `3P%`, Season) %>% ggplot(aes(Season, `3P%`, group=3, color=Player)) + geom_line() + custom_theme + facet_wrap(~Player, ncol=1) + geom_smooth(method='lm')
+
+
+#FT%
+
+per_game_shooting_stats %>% select(Player, `FT%`, RSorPO) %>% ggplot(aes(factor(Player), `FT%`, fill=Player)) + geom_col() + facet_wrap(~RSorPO) + labs(x = 'Player', y = 'FT% per Game') + custom_theme +  ylim(c(0, max(per_game_shooting_stats$`FT%`)))
+
+per_game_shooting_stats %>% select(Player, `FT%`, Season) %>% ggplot(aes(Season, `FT%`, group=3, color=Player)) + geom_line() + facet_wrap(~Player, ncol=1) + custom_theme + geom_smooth(method='lm')
+
+
+
+#PTS
+
+per_game_shooting_stats %>% select(Player, PTS, RSorPO) %>% ggplot(aes(factor(Player), PTS, fill=Player)) + geom_col() + facet_wrap(~RSorPO) + labs(x = 'Player', y='PTS per game') + custom_theme +  ylim(c(0, max(per_game_shooting_stats$`PTS`)))
+
+per_game_shooting_stats %>% select(Player, PTS, Season) %>% ggplot(aes(Season, PTS, group=3, color=Player)) + geom_line() + facet_wrap(~Player, ncol=1) + custom_theme + geom_smooth(method='lm')
+
+
+
+
+
+
+```
+
+
+
+
+
+```{r}
+
+#Per- Game Analysis - shooting statistics
+
+#Scatter plots
+
+per_game_stats_df
+
+per_game_shooting_stats
+
+
+per_game_shooting_stats %>% select(Age, `FG%`, Player, FGA, RSorPO) %>% ggplot(aes(Age, `FG%`, color=Player)) + geom_jitter() + geom_smooth(method='lm', se=FALSE) + facet_grid(vars(RSorPO), vars(Player))
+
+#filter for lebron james
+
+
+per_game_shooting_stats %>% select(Age, `FG%`, Player) %>% filter(Player == 'Lebron James') %>% ggplot(aes(Age, `FG%`,  color=Player)) + geom_jitter() + geom_smooth(method='lm', se=FALSE) + labs(x = 'Age', y = 'FG% per game')
+
+per_game_shooting_stats %>% select(Age, `FG%`, Player, RSorPO) %>% filter(Player == 'Lebron James') %>% ggplot(aes(Age, `FG%`,  color=RSorPO)) + geom_jitter() + geom_smooth(method='lm', se=FALSE) + labs(x = 'Age', y = 'FG% per game')
+
+#Linear Regression Model for Lebron James 
+
+lebron_per_game_fgp <- per_game_shooting_stats %>% select(Age, `FG%`, Player) %>% filter(Player == 'Lebron James') %>% mutate(Correlation = cor(Age, `FG%`)) 
+
+
+lebron_model <- lm(`FG%` ~ Age, lebron_per_game_fgp)
+
+lebron_model_summary <- summary(lebron_model) 
+
+lebron_model_df <- augment(lebron_model)
+
+lebron_per_game_fgp
+
+lebron_model
+
+lebron_model_summary
+
+lebron_model_df 
+
+
+lebron_model_df %>% select(Age, `FG%`, .fitted) %>% ggplot(aes(Age, `FG%`))  + geom_point() + geom_segment(aes(Age, `FG%`, xend=Age, yend=.fitted))  + labs(x = 'Lebron James Age', y = 'FG% per game') + geom_point(aes(y=.fitted)) + geom_smooth(method='lm', se=FALSE)
+
+lebron_model_df %>% select(Age, `FG%`, .fitted) %>% ggplot(aes(Age, .fitted)) + geom_point() + geom_abline(aes(.fitted, `FG%`), slope= 0.006519 , intercept = 0.325102) + geom_smooth(method='lm', se=FALSE)
+
+
+lebron_model_df %>% select(Age, `FG%`, .fitted, .resid) %>% ggplot(aes(.fitted, .resid)) + geom_line(aes(color='red')) + geom_hline(yintercept = 0, color='blue') + geom_point()
+
+
+
+plot(lebron_model)
+
+glance(lebron_model)
+
+
+#Lebron best per game FG%
+
+
+#Not much of the variation in FG% is explained by Age
+
+```
+
+
+
+```{r}
+
+
+#Linear Regression Model for Kobe Bryant
+
+
+per_game_shooting_stats %>% select(Age, `FG%`, Player, FGA, RSorPO) %>% ggplot(aes(Age, `FG%`, color=Player)) + geom_jitter() +  facet_grid(vars(RSorPO), vars(Player)) + geom_smooth(method='lm', se=FALSE)
+
+kobe_per_game_fgp <- per_game_shooting_stats %>% select(Age, `FG%`, Player, RSorPO) %>% filter(Player == 'Kobe Bryant')
+
+
+
+kobe_per_game_fgp %>% ggplot(aes(Age, `FG%`, color=RSorPO)) + geom_jitter() + geom_smooth(method='lm', se=FALSE) + labs(x = 'Kobe Age', y = 'FG% per game', title = 'FG% vs. Age in playoffs and regular season')
+
+kobe_model = lm(`FG%` ~ Age + RSorPO, kobe_per_game_fgp)
+
+
+kobe_model_summary= summary(kobe_model)
+
+kobe_model_df = augment(kobe_model)
+
+
+kobe_interaction_model = lm(`FG%` ~ Age + RSorPO + Age:RSorPO, kobe_per_game_fgp)
+
+kobe_interaction_model_summary = summary(kobe_interaction_model)
+
+kobe_interaction_model_df = augment(kobe_interaction_model)
+
+
+kobe_model
+kobe_interaction_model
+
+kobe_model_summary
+kobe_interaction_model_summary
+
+kobe_model_df
+kobe_interaction_model_df
+
+#Non interaction model
+
+
+kobe_model_df %>% select(Age, `FG%`, .fitted, RSorPO) %>% ggplot(aes(Age, .fitted, color=RSorPO)) + geom_jitter() + geom_smooth(method='lm', se=FALSE) + labs(x = 'Kobe Age', y='FG% per game', title='Kobe FG% vs. Age in Playoffs and Regular season - no interaction') 
+
+#
+
+plot(kobe_model)
+
+
+
+
+kobe_model_df %>% select(Age, `FG%`, .fitted, RSorPO, .resid) %>% ggplot(aes(.fitted, .resid, color=RSorPO)) + geom_line() + geom_hline(yintercept = 0, color='blue') + geom_point()
+
+
+glance(kobe_model)
+
+#with interaction model
+
+
+kobe_interaction_model_df %>%  select(Age, `FG%`, .fitted, RSorPO) %>% ggplot(aes(Age, .fitted, color=RSorPO)) + geom_jitter() + geom_smooth(method = 'lm', se=FALSE) + labs(x = 'Kobe Age', title = 'Kobe FG% vs. Age in Playoffs and Regular season - with interaction')
+
+#par(mfrow=c(2,2))
+
+plot(kobe_interaction_model)
+
+glance(kobe_interaction_model)
+
+kobe_interaction_model_df %>% select(Age, `FG%`, .fitted, RSorPO, .resid) %>% ggplot(aes(.fitted, .resid)) + geom_line() + geom_hline(yintercept=0, color='blue') + geom_point() + facet_wrap(~RSorPO)
+
+
+
+kobe_combined_df <- kobe_per_game_fgp %>% bind_cols(kobe_model_df$.fitted, kobe_interaction_model_df$.fitted) %>% rename(no_interacton_fit = ...5, interaction_fit = ...6)
+
+
+
+
+#TAge is not a good factor for measuring FG% , as only 22% of the variation is explained by Age
+
+
+
+
+vip(kobe_interaction_model)
+
+
+```
+
+```{r}
+
+#Try and see what goes into player efficiency rating
+advanced_stats_df
+
+
+
+relevant_features <- advanced_stats_df %>% select(-Season, -Lg, -Tm, -Pos, -Player)
+
+
+
+
+relevant_features
+
+
+
+
+```
+
+
+
+
+
+
+```{r}
+
+#Lets look at the variable importance in Player Efficiency rating
+
+#train and test sets
+
+advanced_features_split <- initial_split(relevant_features, prop=0.75, strata = PER)
+
+advanced_features_train <- training(advanced_features_split)
+
+advanced_features_test <- testing(advanced_features_split)
+
+
+
+#Cross validation folds
+advanced_features_validation = validation_split(advanced_features_train, prop=0.75, strata=PER)
+
+
+advanced_features_bootstraps <- bootstraps(advanced_features_train, strata = PER)
+
+advanced_features_folds <- vfold_cv(advanced_features_train, v = 10)
+
+#Recipe
+
+linear_model_recipe <- recipe(PER ~ ., data=advanced_features_train) %>% 
+                              step_dummy(all_nominal(), -all_outcomes()) %>%
+                              step_YeoJohnson(all_numeric(), -all_outcomes()) %>%
+                              step_normalize(all_numeric(), -all_outcomes()) %>%
+                              step_corr(all_numeric(), -all_outcomes()) 
+                              
+
+prepped_training_data <- linear_model_recipe %>% prep() %>% bake(new_data=advanced_features_train)
+
+#Linear Regression models
+
+# lm model
+
+
+linear_model_default <- linear_reg() %>% set_engine('lm') %>% set_mode('regression')
+
+
+
+
+#workflows
+
+linear_model_default_wf <- workflow() %>% add_model(linear_model_default) %>% add_recipe(linear_model_recipe)
+
+
+
+
+
+
+
+linear_model_default_wf
+
+
+
+
+
+advanced_features_train
+
+prepped_training_data
+
+```
+
+```{r}
+#initial training
+
+
+#Fit and evaluate 
+
+linear_model_default_fit <- fit(linear_model_default_wf, data=advanced_features_train)
+
+
+lm_default_workflow_fit <- linear_model_default_fit %>% pull_workflow_fit()
+
+
+
+glance(lm_default_workflow_fit)
+
+tidy(lm_default_workflow_fit)
+
+
+vip(lm_default_workflow_fit)
+
+
+summary(lm_default_workflow_fit$fit)
+
+
+
+plot(lm_default_workflow_fit$fit)
+
+
+
+```
+
+
+
+
+```{r}
+#analyze interactions among top three features
+
+relevant_features %>% select(`USG%`, `TS%`, `WS/48`, `TOV%`, PER, RSorPO)
+
+
+relevant_features %>% ggplot(aes(`USG%`, PER)) + geom_point() + geom_smooth(method='lm', se=FALSE)
+
+relevant_features %>% ggplot(aes(`TS%`, PER)) + geom_point() + geom_smooth(method='lm', se=FALSE)
+
+relevant_features %>% ggplot(aes(`WS/48`, PER)) + geom_point() + geom_smooth(method='lm', se=FALSE) + scale_x_log10() 
+
+
+
+relevant_features %>% ggplot(aes(`TOV%`, PER)) + geom_point() + geom_smooth(method='lm', se=FALSE) + scale_x_log10() 
+
+#investigate important variables
+
+vip_mod_one <- lm(PER ~ `USG%` + `TS%` + `TOV%` , relevant_features)
+
+vip_mod_one_summary <- summary(vip_mod_one)
+
+vip_mod_one_df <- augment(vip_mod_one)
+
+
+
+glance(vip_mod_one)
+
+
+
+#interaction 
+
+
+vip_mod_two <- lm(PER ~ `USG%` + `TS%`:`TOV%`, relevant_features)
+
+glance(vip_mod_two)
+
+
+vip_mod_three <- lm(PER ~ `TOV%` + `USG%`:`TS%`, relevant_features)
+
+glance(vip_mod_three)
+
+
+vip_mod_four <- lm(PER ~ `TS%` + `USG%`:`TOV%`, relevant_features)
+
+
+glance(vip_mod_four)
+
+
+#model 1 the best
+
+
+
+
+```
+```{r}
+#model 1 the best
+
+vip_mod_one_summary
+
+results_df <- vip_mod_one_df %>% bind_cols(advanced_stats_df$Player, advanced_stats$RSorPO) %>% rename(Player = ...11, RSorPO = ...12)
+
+results_df
+
+plot(vip_mod_one)
+
+
+vip_mod_one_df %>% ggplot(aes(.fitted, .resid)) + geom_jitter() + geom_hline(yintercept=0)
+
+
+
+
+#Ts% vs Predictions
+results_df %>%  ggplot(aes(`TS%`, .fitted, color=Player))  + geom_jitter() + geom_smooth(method='lm', se=FALSE) + facet_grid(vars(RSorPO), vars(Player))
+
+results_df %>%  ggplot(aes(`TS%`, PER, color=Player))  + geom_jitter() + geom_smooth(method='lm', se=FALSE) + facet_grid(vars(RSorPO), vars(Player))
+
+
+
+
+
+#USG% vs Predictions
+
+results_df %>%  ggplot(aes(`USG%`, .fitted, color=Player))  + geom_jitter() + geom_smooth(method='lm', se=FALSE) + facet_grid(vars(RSorPO), vars(Player))
+
+results_df %>%  ggplot(aes(`USG%`, PER, color=Player))  + geom_jitter() + geom_smooth(method='lm', se=FALSE) + facet_grid(vars(RSorPO), vars(Player))
+
+
+
+#TOV% vs Predictions
+
+results_df %>%  ggplot(aes(`TOV%`, .fitted, color=Player))  + geom_jitter() + geom_smooth(method='lm', se=FALSE) + facet_grid(vars(RSorPO), vars(Player))
+
+results_df %>%  ggplot(aes(`TOV%`, PER, color=Player))  + geom_jitter() + geom_smooth(method='lm', se=FALSE) + facet_grid(vars(RSorPO), vars(Player))
+
+
+
+
+
+results_df %>% ggplot(aes(Player, `USG%`, fill=Player)) + geom_col() + facet_wrap(~RSorPO)+ custom_theme + ylim(c(0, max(results_df$`USG%`)))
+
+results_df %>% ggplot(aes(Player, `TS%`, fill=Player)) + geom_col()  + facet_wrap(~RSorPO) + custom_theme + ylim(c(0, max(results_df$`TS%`)))
+
+results_df %>% ggplot(aes(Player, `TOV%`, fill=Player)) + geom_col()  + facet_wrap(~RSorPO) +  custom_theme + ylim(c(0, max(results_df$`TOV%`)))
+
+advanced_stats_df %>% group_by(Player, Season) %>% select(Player, Season, PER, RSorPO) %>% ggplot(aes(Player, PER, fill=Player)) + geom_col() + facet_wrap(~RSorPO) + ylim(c(0, max(advanced_stats_df$PER))) + custom_theme + labs(y = 'Player Efficiency Rating')
+
+
+#TS% was higher for Lebron in the playoffs, MJ in the Regular Season
+
+```
+
+```{r}
+
+#fit models with resample methods to improve accuracy
+
+#bootstrap resampling for training
+
+
+
+linear_model_default_fit_resampled <- fit_resamples(linear_model_default_wf, resamples = advanced_features_bootstraps, control = control_resamples(save_pred=TRUE))
+
+linear_model_default_fit_resampled
+                                                                                                      
+
+```
+
+
+```{r}
+
+#Get best model
+linear_model_workflow_fit <- linear_model_default_fit_resampled %>% show_best('rsq')
+
+best_lin_mod <- linear_model_default_fit_resampled %>% select_best('rsq')
+
+linear_model_workflow_fit
+
+best_lin_mod
+
+
+```
+
+
+
+```{r}
+
+final_linear_model_wf <- linear_model_default_wf %>% finalize_workflow(best_lin_mod)
+
+
+final_linear_mod_fit <- final_linear_model_wf %>% fit(advanced_features_train)
+
+final_linear_mod_workflow_fit <- final_linear_mod_fit %>% pull_workflow_fit()
+
+vip(final_linear_mod_workflow_fit)
+
+#PER is categorized by TS%. US%, and TOV%
+
+```
+
+
+```{r}
+
+final_linear_model_results <- final_linear_model_wf %>% last_fit(advanced_features_split)
+
+final_linear_model_results %>% collect_metrics()
+
+final_linear_model_preds <- final_linear_mod_fit %>% predict(advanced_features_test) %>% bind_cols(advanced_features_test) %>% rename(linear_model_predictions = .pred)
+
+final_linear_model_preds
+
+final_linear_model_results %>% collect_predictions()
+
+
+```
+
+
+
+
+```{r}
+#Defensive Player
+
+defensive_df <- advanced_stats_df %>% select(Player, RSorPO, `DRB%`, `STL%`, `BLK%`, `DWS`, DBPM)
+
+defensive_df
+
+
+
+
+
+
+```
+
+
+```{r}
+ defensive_df %>% select(`DRB%`, `STL%`, `BLK%`, DWS, DBPM) %>% cor(method = 'pearson', use='complete.obs')
+```
+
+
+
+
+
+```{r}
+
+#linear model for DBPM
+
+defensive_model_df <- defensive_df %>% select(-Player, -RSorPO) 
+
+dbpm_model <- lm(DBPM ~ ., data=defensive_model_df)
+
+dbpm_df <- augment(dbpm_model)
+
+dbpm_summary <- summary(dbpm_model)
+
+dbpm_vip <- vip(dbpm_model)
+
+
+
+
+
+
+#linear model for DWS
+
+dws_model <- lm(DWS ~ ., data=defensive_model_df)
+
+dws_model_df <- augment(dws_model)
+
+dws_model_summary <- summary(dws_model)
+
+dws_model_vip <- vip(dws_model)
+
+
+
+
+
+
+
+
+```
+
+
+
+
+```{r}
+dws_model_summary
+
+dws_model_df
+
+dws_model_vip
+
+#rsq = 0.283
+```
+
+
+
+```{r}
+dbpm_summary
+
+dbpm_df
+
+
+
+glance(dbpm_model)
+
+dbpm_vip
+
+#rsq = 0.7465
+
+
+
+results_df <- dbpm_df %>% bind_cols(defensive_df$Player, defensive_df$RSorPO) %>% rename(Player = ...12, RSorPO = ...13) 
+
+
+results_df
+
+results_df %>% ggplot(aes(.fitted, .resid)) + geom_jitter() + geom_hline(yintercept = 0, color='red')
+
+
+
+results_df %>% ggplot(aes(`DRB%`, .fitted, color=Player)) + geom_jitter() + geom_smooth(method='lm', se=FALSE) + custom_theme + facet_grid(vars(RSorPO), vars(Player)) + labs(y = 'fitted DBPM')
+
+
+results_df %>% ggplot(aes(`BLK%`, .fitted, color=Player)) + geom_jitter() + geom_smooth(method='lm', se=FALSE) + custom_theme + facet_grid(vars(RSorPO), vars(Player)) + labs(y = 'fitted DBPM')
+
+
+results_df %>% ggplot(aes(`STL%`, .fitted, color=Player)) + geom_jitter() + geom_smooth(method='lm', se=FALSE) + custom_theme + facet_grid(vars(RSorPO), vars(Player)) + labs(y = 'fitted DBPM')
+
+
+
+
+
+```
+
+```{r}
+
+#DRB%
+results_df %>% ggplot(aes(Player, `DRB%`, fill=Player)) + geom_col() + custom_theme + facet_wrap(~RSorPO) + ylim(c(0, max(results_df$`DRB%`)))
+
+
+
+#STL and STL%
+results_df %>% ggplot(aes(Player, `STL%`, fill=Player)) + geom_col() + custom_theme + facet_wrap(~RSorPO) + ylim(c(0, max(results_df$`STL%`)))
+
+per_game_stats_df %>% ggplot(aes(Player, STL, fill=Player)) + geom_col() + custom_theme + facet_wrap(~RSorPO) + ylim(c(0, max(per_game_stats_df$STL))) + labs(x = 'STL Per Game')
+
+
+
+
+#BLK and BLK%
+per_game_stats_df %>% ggplot(aes(Player, BLK, fill=Player)) + geom_col() + custom_theme + 
+facet_wrap(~RSorPO) + ylim(c(0, max(per_game_stats_df$BLK))) + labs(x = 'BLK Per Game')
+
+results_df %>% ggplot(aes(Player, `BLK%`, fill=Player)) + geom_col() + custom_theme +
+facet_wrap(~RSorPO) + ylim(c(0, max(results_df$`BLK%`)))
+
+
+#DBPM
+results_df %>% ggplot(aes(Player, DBPM, fill=Player)) + geom_col() + custom_theme + facet_wrap(~RSorPO) + ylim(c(0, max(results_df$DBPM)))
+
+
+#Lebron has great hands when it comes to defense, where as MJ thives when protecting the rim
+
+#There are more variables that can explain DBPM
+```
+
+
+
+
+
+
+
